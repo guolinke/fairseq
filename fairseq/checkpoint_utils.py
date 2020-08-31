@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def save_checkpoint(args, trainer, epoch_itr, val_loss):
+    return
     from fairseq import distributed_utils, meters
 
     # only one worker should attempt to create the required dir
