@@ -161,7 +161,11 @@ class TransformerSentenceEncoder(nn.Module):
             else None
         )
 
-        self.pos = nn.Embedding(self.max_seq_len, self.embedding_dim)
+        self.pos_q_linear = nn.Linear(self.embedding_dim, self.embedding_dim)
+        self.pos_k_linear = nn.Linear(self.embedding_dim, self.embedding_dim)
+        self.scaling_factor = 2
+        self.pos_scaling = float(self.embedding_dim / num_attention_heads * self.scaling_factor) ** -0.5
+        self.pos_ln = LayerNorm(self.embedding_dim, export=export)
 
         if self.layerdrop > 0.0:
             self.layers = LayerDropModuleList(p=self.layerdrop)
@@ -208,7 +212,7 @@ class TransformerSentenceEncoder(nn.Module):
             assert rel_pos_bins % 2 == 0
             self.rel_pos_bins = rel_pos_bins
             self.max_rel_pos = max_rel_pos
-            self.relative_attention_bias = nn.Embedding(self.rel_pos_bins, self.num_attention_heads)
+            self.relative_attention_bias = nn.Embedding(self.rel_pos_bins + 1, self.num_attention_heads)
             seq_len = self.max_seq_len
             context_position = torch.arange(seq_len, dtype=torch.long)[:, None]
             memory_position = torch.arange(seq_len, dtype=torch.long)[None, :]
@@ -218,6 +222,8 @@ class TransformerSentenceEncoder(nn.Module):
                 num_buckets=self.rel_pos_bins,
                 max_distance=self.max_rel_pos
             )
+            self.rp_bucket[:, 0] = self.rel_pos_bins
+            self.rp_bucket[0, :] = self.rel_pos_bins // 2
 
     def build_embedding(self, vocab_size, embedding_dim, padding_idx):
         return nn.Embedding(vocab_size, embedding_dim, padding_idx)
@@ -281,7 +287,20 @@ class TransformerSentenceEncoder(nn.Module):
         rel_pos_bias = self.get_rel_pos_bias(tokens) if self.rel_pos else None
 
         seq_len = x.size(1)
-        x += self.pos.weight[:seq_len, :]
+        weight = self.pos_ln(self.pos.weight[:seq_len + 1, :])
+        pos_q =  self.pos_q_linear(weight).view(seq_len + 1, self.num_attention_heads, -1).transpose(0, 1) * (self.pos_scaling)
+        pos_k =  self.pos_k_linear(weight).view(seq_len + 1, self.num_attention_heads, -1).transpose(0, 1)
+        abs_pos_bias = torch.bmm(pos_q, pos_k.transpose(1, 2))
+        # p_0 \dot p_0 is cls to others
+        cls_2_other = abs_pos_bias[:, 0, 0]
+        # p_1 \dot p_1 is others to cls
+        other_2_cls = abs_pos_bias[:, 1, 1]
+        # offset 
+        abs_pos_bias = abs_pos_bias[:, 1:, 1:]
+        abs_pos_bias[:, :, 0] = other_2_cls.view(-1, 1)
+        abs_pos_bias[:, 0, :] = cls_2_other.view(-1, 1)
+        abs_pos_bias += rel_pos_bias
+        self_attn_bias = abs_pos_bias
 
         if self.segment_embeddings is not None and segment_labels is not None:
             x += self.segment_embeddings(segment_labels)
@@ -306,7 +325,7 @@ class TransformerSentenceEncoder(nn.Module):
             inner_states.append(x)
 
         for layer in self.layers:
-            x, _ = layer(x, self_attn_padding_mask=padding_mask, rel_pos_bias=rel_pos_bias)
+            x, _ = layer(x, self_attn_padding_mask=padding_mask, rel_pos_bias=self_attn_bias)
             if not last_state_only:
                 inner_states.append(x)
 
