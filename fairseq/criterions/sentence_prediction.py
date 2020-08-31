@@ -52,6 +52,12 @@ class SentencePredictionCriterion(FairseqCriterion):
         if not self.regression_target:
             lprobs = F.log_softmax(logits, dim=-1, dtype=torch.float32)
             loss = F.nll_loss(lprobs, targets, reduction='sum')
+            if self.args.num_classes == 2:
+                tp = ((logits[:, 0] <= logits[:, 1]) & (targets == 1)).long().sum()
+                fp = ((logits[:, 0] <= logits[:, 1]) & (targets == 0)).long().sum()
+                fn = ((logits[:, 0] > logits[:, 1]) & (targets == 1)).long().sum()
+                tn = ((logits[:, 0] > logits[:, 1]) & (targets == 0)).long().sum()
+                assert (tp + fp + tn + fn) == targets.size(0), 'invalid size'
         else:
             logits = logits.view(-1).float()
             targets = targets.float()
@@ -66,6 +72,11 @@ class SentencePredictionCriterion(FairseqCriterion):
         if not self.regression_target:
             preds = logits.argmax(dim=1)
             logging_output['ncorrect'] = (preds == targets).sum()
+            if self.args.num_classes == 2:
+                logging_output.update(tp=utils.item(tp.data) if reduce else tp.data)
+                logging_output.update(fp=utils.item(fp.data) if reduce else fp.data)
+                logging_output.update(fn=utils.item(fn.data) if reduce else fn.data)
+                logging_output.update(tn=utils.item(tn.data) if reduce else tn.data)
 
         return loss, sample_size, logging_output
 
@@ -84,6 +95,20 @@ class SentencePredictionCriterion(FairseqCriterion):
         if len(logging_outputs) > 0 and 'ncorrect' in logging_outputs[0]:
             ncorrect = sum(log.get('ncorrect', 0) for log in logging_outputs)
             metrics.log_scalar('accuracy', 100.0 * ncorrect / nsentences, nsentences, round=1)
+            tp_sum = sum(log.get('tp', 0) for log in logging_outputs)
+            fp_sum = sum(log.get('fp', 0) for log in logging_outputs)
+            fn_sum = sum(log.get('fn', 0) for log in logging_outputs)
+            tn_sum = sum(log.get('tn', 0) for log in logging_outputs)
+            if tp_sum + fp_sum + fn_sum + tn_sum > 0:
+                assert tp_sum + fp_sum + fn_sum + tn_sum == sample_size, 'invalid size when aggregating'
+                acc = (tp_sum + tn_sum) / sample_size
+                tmp = 2 * tp_sum + fp_sum + fn_sum
+                f1 = (2 * tp_sum) / tmp if tmp else 0
+                tmp = (tp_sum + fp_sum) * (tp_sum + fn_sum) * (tn_sum + fp_sum) * (tn_sum + fn_sum)
+                mcc = (tp_sum * tn_sum - fp_sum * fn_sum) / (tmp ** 0.5) if tmp else 0
+                metrics.log_scalar('f1', f1)
+                metrics.log_scalar('mcc', mcc)
+                metrics.log_scalar('acc_f1', 0.5 * (acc + f1))
 
     @staticmethod
     def logging_outputs_can_be_summed() -> bool:
