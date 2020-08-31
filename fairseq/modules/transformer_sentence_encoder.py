@@ -179,6 +179,7 @@ class TransformerSentenceEncoder(nn.Module):
             freeze_module_params(self.layers[layer])
         self.rel_pos = rel_pos
         if self.rel_pos:
+            self.num_attention_heads = num_attention_heads
             assert rel_pos_bins % 2 == 0
             self.rel_pos_bins = rel_pos_bins
             self.max_rel_pos = max_rel_pos
