@@ -5,6 +5,7 @@
 
 from typing import Optional, Tuple
 
+import math
 import torch
 import torch.nn as nn
 from fairseq.modules import (
