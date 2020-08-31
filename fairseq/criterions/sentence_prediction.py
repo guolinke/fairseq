@@ -52,12 +52,11 @@ class SentencePredictionCriterion(FairseqCriterion):
         if not self.regression_target:
             lprobs = F.log_softmax(logits, dim=-1, dtype=torch.float32)
             loss = F.nll_loss(lprobs, targets, reduction='sum')
-            if self.args.num_classes == 2:
-                tp = ((logits[:, 0] <= logits[:, 1]) & (targets == 1)).long().sum()
-                fp = ((logits[:, 0] <= logits[:, 1]) & (targets == 0)).long().sum()
-                fn = ((logits[:, 0] > logits[:, 1]) & (targets == 1)).long().sum()
-                tn = ((logits[:, 0] > logits[:, 1]) & (targets == 0)).long().sum()
-                assert (tp + fp + tn + fn) == targets.size(0), 'invalid size'
+            tp = ((logits[:, 0] <= logits[:, 1]) & (targets == 1)).long().sum()
+            fp = ((logits[:, 0] <= logits[:, 1]) & (targets == 0)).long().sum()
+            fn = ((logits[:, 0] > logits[:, 1]) & (targets == 1)).long().sum()
+            tn = ((logits[:, 0] > logits[:, 1]) & (targets == 0)).long().sum()
+            assert (tp + fp + tn + fn) == targets.size(0), 'invalid size'
         else:
             logits = logits.view(-1).float()
             targets = targets.float()
@@ -72,11 +71,10 @@ class SentencePredictionCriterion(FairseqCriterion):
         if not self.regression_target:
             preds = logits.argmax(dim=1)
             logging_output['ncorrect'] = (preds == targets).sum()
-            if self.args.num_classes == 2:
-                logging_output.update(tp=utils.item(tp.data) if reduce else tp.data)
-                logging_output.update(fp=utils.item(fp.data) if reduce else fp.data)
-                logging_output.update(fn=utils.item(fn.data) if reduce else fn.data)
-                logging_output.update(tn=utils.item(tn.data) if reduce else tn.data)
+            logging_output.update(tp=utils.item(tp.data) if reduce else tp.data)
+            logging_output.update(fp=utils.item(fp.data) if reduce else fp.data)
+            logging_output.update(fn=utils.item(fn.data) if reduce else fn.data)
+            logging_output.update(tn=utils.item(tn.data) if reduce else tn.data)
 
         return loss, sample_size, logging_output
 
