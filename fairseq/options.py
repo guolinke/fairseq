@@ -528,6 +528,8 @@ def add_checkpoint_args(parser):
                        help=('early stop training if valid performance doesn\'t '
                              'improve for N consecutive validation runs; note '
                              'that this is influenced by --validate-interval'))
+    group.add_argument('--keep-updates-list', type=int, nargs='+', default=[], metavar='N',
+                       help='keep the needed checkpoints with --keep-updates-list')
     # fmt: on
     return group
 
