@@ -97,6 +97,9 @@ class TransformerSentenceEncoder(nn.Module):
         traceable: bool = False,
         q_noise: float = 0.0,
         qn_block_size: int = 8,
+        rel_pos: bool = True,
+        rel_pos_bins: int = 32,
+        max_rel_pos: int = 128,
     ) -> None:
 
         super().__init__()
@@ -133,16 +136,7 @@ class TransformerSentenceEncoder(nn.Module):
             else None
         )
 
-        self.embed_positions = (
-            PositionalEmbedding(
-                self.max_seq_len,
-                self.embedding_dim,
-                padding_idx=(self.padding_idx if offset_positions_by_padding else None),
-                learned=self.learned_pos_embedding,
-            )
-            if self.use_position_embeddings
-            else None
-        )
+        self.pos = nn.Embedding(self.max_seq_len, self.embedding_dim)
 
         if self.layerdrop > 0.0:
             self.layers = LayerDropModuleList(p=self.layerdrop)
@@ -186,9 +180,33 @@ class TransformerSentenceEncoder(nn.Module):
 
         for layer in range(n_trans_layers_to_freeze):
             freeze_module_params(self.layers[layer])
+        self.rel_pos = rel_pos
+        if self.rel_pos:
+            assert rel_pos_bins % 2 == 0
+            self.rel_pos_bins = rel_pos_bins
+            self.max_rel_pos = max_rel_pos
+            self.relative_attention_bias = nn.Embedding(self.rel_pos_bins, self.num_attention_heads)
+            seq_len = self.max_seq_len
+            context_position = torch.arange(seq_len, dtype=torch.long)[:, None]
+            memory_position = torch.arange(seq_len, dtype=torch.long)[None, :]
+            relative_position = memory_position - context_position
+            self.rp_bucket = relative_position_bucket(
+                relative_position,
+                num_buckets=self.rel_pos_bins,
+                max_distance=self.max_rel_pos
+            )
 
     def build_embedding(self, vocab_size, embedding_dim, padding_idx):
         return nn.Embedding(vocab_size, embedding_dim, padding_idx)
+
+    def get_rel_pos_bias(self, x):
+        if self.rp_bucket.device != x.device:
+            self.rp_bucket = self.rp_bucket.to(x.device)
+        seq_len = x.size(1)
+        rp_bucket = self.rp_bucket[:seq_len, :seq_len]
+        values = F.embedding(rp_bucket, self.relative_attention_bias.weight)
+        values = values.permute([2, 0, 1])
+        return values.contiguous()
 
     def build_transformer_sentence_encoder_layer(
         self,
@@ -236,9 +254,11 @@ class TransformerSentenceEncoder(nn.Module):
 
         if self.embed_scale is not None:
             x *= self.embed_scale
+        
+        rel_pos_bias = self.get_rel_pos_bias(tokens) if self.rel_pos else None
 
-        if self.embed_positions is not None:
-            x += self.embed_positions(tokens, positions=positions)
+        seq_len = x.size(1)
+        x += self.pos.weight[:seq_len, :]
 
         if self.segment_embeddings is not None and segment_labels is not None:
             x += self.segment_embeddings(segment_labels)
@@ -263,7 +283,7 @@ class TransformerSentenceEncoder(nn.Module):
             inner_states.append(x)
 
         for layer in self.layers:
-            x, _ = layer(x, self_attn_padding_mask=padding_mask)
+            x, _ = layer(x, self_attn_padding_mask=padding_mask, rel_pos_bias=rel_pos_bias)
             if not last_state_only:
                 inner_states.append(x)
 
