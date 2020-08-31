@@ -45,6 +45,29 @@ def init_bert_params(module):
         module.k_proj.weight.data.normal_(mean=0.0, std=0.02)
         module.v_proj.weight.data.normal_(mean=0.0, std=0.02)
 
+def relative_position_bucket(relative_position, bidirectional=True, num_buckets=32, max_distance=128):
+    ret = 0
+    n = -relative_position
+    if bidirectional:
+        num_buckets //= 2
+        ret += (n < 0).to(torch.long) * num_buckets  # mtf.to_int32(mtf.less(n, 0)) * num_buckets
+        n = torch.abs(n)
+    else:
+        n = torch.max(n, torch.zeros_like(n))
+    # now n is in the range [0, inf)
+
+    # half of the buckets are for exact increments in positions
+    max_exact = num_buckets // 2
+    is_small = n < max_exact
+
+    # The other half of the buckets are for logarithmically bigger bins in positions up to max_distance
+    val_if_large = max_exact + (
+        torch.log(n.float() / max_exact) / math.log(max_distance / max_exact) * (num_buckets - max_exact)
+    ).to(torch.long)
+    val_if_large = torch.min(val_if_large, torch.full_like(val_if_large, num_buckets - 1))
+
+    ret += torch.where(is_small, n, val_if_large)
+    return ret
 
 class TransformerSentenceEncoder(nn.Module):
     """
