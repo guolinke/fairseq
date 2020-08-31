@@ -70,8 +70,8 @@ python train.py $DATA_DIR --fp16 --fp16-init-scale 4 --threshold-loss-scale 1 --
     --weight-decay $WEIGHT_DECAY --optimizer adam --adam-betas "$BETAS" --adam-eps 1e-06 \
     --clip-norm $CLIP \
     --lr-scheduler polynomial_decay --lr $LR --total-num-update 2680 --warmup-updates 160  \
-    --max-epoch $N_EPOCH --seed $SEED --save-dir $OUTPUT_PATH --no-progress-bar --log-interval 100 --no-epoch-checkpoints --no-last-checkpoints --no-best-checkpoints \
-    --find-unused-parameters --skip-invalid-size-inputs-valid-test --truncate-sequence --embedding-normalize \
+    --max-epoch $N_EPOCH --seed $SEED --save-dir $OUTPUT_PATH --no-progress-bar --log-interval 100 --no-epoch-checkpoints --no-last-checkpoints \
+    --find-unused-parameters --skip-invalid-size-inputs-valid-test \
     --tensorboard-logdir . \
-    --best-checkpoint-metric $METRIC --maximize-best-checkpoint-metric --rel-pos | tee $OUTPUT_PATH/train_log.txt 
+    --best-checkpoint-metric $METRIC --maximize-best-checkpoint-metric | tee $OUTPUT_PATH/train_log.txt 
 
