@@ -160,7 +160,7 @@ class TransformerSentenceEncoder(nn.Module):
             if self.num_segments > 0
             else None
         )
-
+        self.pos = nn.Embedding(self.max_seq_len + 1, self.embedding_dim)
         self.pos_q_linear = nn.Linear(self.embedding_dim, self.embedding_dim)
         self.pos_k_linear = nn.Linear(self.embedding_dim, self.embedding_dim)
         self.scaling_factor = 2
