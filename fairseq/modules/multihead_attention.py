@@ -308,9 +308,9 @@ class MultiheadAttention(nn.Module):
                 attn_weights = attn_weights.transpose(0, 2)
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
         if rel_pos_bias is not None:
-            attn_weights = attn_weights.view(bsz, num_heads, tgt_len, src_len)
+            attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
             attn_weights += rel_pos_bias
-            attn_weights = attn_weights.view(bsz * num_heads, tgt_len, src_len)
+            attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
         if before_softmax:
             return attn_weights, v
 
