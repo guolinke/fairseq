@@ -7,7 +7,9 @@
 import os
 from setuptools import setup, find_packages, Extension
 import sys
+import site
 
+site.ENABLE_USER_SITE = True
 
 if sys.version_info < (3, 6):
     sys.exit('Sorry, Python >= 3.6 is required for fairseq.')
