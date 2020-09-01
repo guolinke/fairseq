@@ -8,6 +8,9 @@ import math
 import torch
 import torch.nn.functional as F
 
+import scipy.stats as stats
+import numpy as np
+
 from fairseq import metrics, utils
 from fairseq.criterions import FairseqCriterion, register_criterion
 
@@ -75,6 +78,9 @@ class SentencePredictionCriterion(FairseqCriterion):
             logging_output.update(fp=utils.item(fp.data) if reduce else fp.data)
             logging_output.update(fn=utils.item(fn.data) if reduce else fn.data)
             logging_output.update(tn=utils.item(tn.data) if reduce else tn.data)
+        else:
+            logging_output.update(x=logits.detach().cpu().numpy())
+            logging_output.update(y=targets.detach().cpu().numpy())
 
         return loss, sample_size, logging_output
 
@@ -107,6 +113,14 @@ class SentencePredictionCriterion(FairseqCriterion):
                 metrics.log_scalar('f1', f1)
                 metrics.log_scalar('mcc', mcc)
                 metrics.log_scalar('acc_f1', 0.5 * (acc + f1))
+        if len(logging_outputs) > 0 and 'x' in logging_outputs[0]:
+            x = np.concatenate([log.get('x', np.array([])) for log in logging_outputs])
+            y = np.concatenate([log.get('y', np.array([])) for log in logging_outputs])
+            pearson = stats.pearsonr(x, y)[0]
+            spearman = stats.spearmanr(x, y)[0]
+            metrics.log_scalar('pearson', pearson)
+            metrics.log_scalar('spearman', spearman)
+            metrics.log_scalar('pearson_spearman', 0.5 * (pearson + spearman))
 
     @staticmethod
     def logging_outputs_can_be_summed() -> bool:
