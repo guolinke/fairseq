@@ -303,7 +303,6 @@ def validate(args, trainer, task, epoch_itr, subsets):
             logging_outputs = []
             for sample in progress:
                 logging_output = trainer.valid_step(sample)
-                print(logging_output)
                 logging_outputs.append(logging_output)
             task.reduce_metrics(logging_outputs, trainer.get_criterion())
 
