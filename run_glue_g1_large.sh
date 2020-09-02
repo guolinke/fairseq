@@ -71,10 +71,12 @@ EPOCH_ITER=11382
 fi
 
 if ["$TASK" = "SST-2"]
+then
 EPOCH_ITER=2105
 fi
 
 if ["$TASK" = "MRPC"]
+then
 EPOCH_ITER=115
 fi
 
