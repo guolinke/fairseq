@@ -658,7 +658,7 @@ class Trainer(object):
             )
 
         # log validation stats
-        logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
+        # logging_output = self._reduce_and_log_stats(logging_outputs, sample_size)
 
         return logging_output
 

@@ -300,8 +300,12 @@ def validate(args, trainer, task, epoch_itr, subsets):
         # create a new root metrics aggregator so validation metrics
         # don't pollute other aggregators (e.g., train meters)
         with metrics.aggregate(new_root=True) as agg:
+            logging_outputs = []
             for sample in progress:
-                trainer.valid_step(sample)
+                logging_output = trainer.valid_step(sample)
+                print(logging_output)
+                logging_outputs.append(logging_output)
+            task.reduce_metrics(logging_outputs, trainer.get_criterion())
 
         # log validation stats
         stats = get_valid_stats(args, trainer, agg.get_smoothed_values())
