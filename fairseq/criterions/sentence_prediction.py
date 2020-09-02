@@ -98,7 +98,7 @@ class SentencePredictionCriterion(FairseqCriterion):
 
         if len(logging_outputs) > 0 and 'ncorrect' in logging_outputs[0]:
             ncorrect = sum(log.get('ncorrect', 0) for log in logging_outputs)
-            metrics.log_scalar('accuracy', float(ncorrect) / nsentences, round=6)
+            metrics.log_scalar('accuracy', float(ncorrect) / nsentences, sample_size, round=6)
             tp_sum = float(sum(log.get('tp', 0) for log in logging_outputs))
             fp_sum = float(sum(log.get('fp', 0) for log in logging_outputs))
             fn_sum = float(sum(log.get('fn', 0) for log in logging_outputs))
