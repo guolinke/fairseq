@@ -34,7 +34,7 @@ if [ ! -e $BERT_MODEL_PATH ]; then
     exit 0
 fi
 
-GLUE_DIR=glue-0508
+GLUE_DIR=glue-large-v2
 DATA_DIR=$PREFIX/$GLUE_DIR/$TASK-bin-32768
 OPTION=""
 
